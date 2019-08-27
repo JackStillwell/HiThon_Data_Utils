@@ -62,5 +62,5 @@ def get_most_recent_match_id(data: GodMatchData) -> str:
     for v in data.values():
         all_matches.extend(v)
 
-    all_matches.sort(key=lambda x: x['Match_Date_Timestamp'])
+    all_matches.sort(key=lambda x: x['Match_Date_Timestamp'], reverse=True)
     return all_matches[0]
