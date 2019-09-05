@@ -4,7 +4,7 @@ from copy import deepcopy
 
 from tqdm import tqdm
 
-from typing import Dict, Union, List, Tuple, Any
+from typing import Dict, Union, List, Tuple, Any, Callable
 
 GodMatchData = Dict[str, List[Dict[str, Any]]]
 
@@ -116,7 +116,10 @@ def get_most_recent_match_id(data: GodMatchData) -> str:
     return all_matches[0]["MatchId"]
 
 
-def populate_opposing_and_allied_gods(directory_path: str):
+def migrate_records_in_directory(
+        directory_path: str,
+        migration_function: Callable[[Dict[str, Any], List[Dict[str, Any]]],
+                                     Dict[str, Any]]):
     data = load_from_directory(directory_path)
 
     ret_gmd = {}
@@ -125,14 +128,7 @@ def populate_opposing_and_allied_gods(directory_path: str):
     all_ret_data = deepcopy(all_data)
 
     for ret_data in tqdm(all_ret_data):
-        ret_data['Opposing_GodIds'] = []
-        ret_data['Allied_GodIds'] = []
-        for match_data in all_data:
-            if ret_data['MatchId'] == match_data['MatchId']:
-                if ret_data['TaskForce'] == match_data['TaskForce']:
-                    ret_data['Allied_GodIds'].append(match_data['GodId'])
-                else:
-                    ret_data['Opposing_GodIds'].append(match_data['GodId'])
+        ret_data = migration_function(ret_data, all_data)
 
         if not ret_gmd.get(ret_data['GodId'], None):
             ret_gmd[ret_data['GodId']] = []
@@ -140,3 +136,20 @@ def populate_opposing_and_allied_gods(directory_path: str):
         ret_gmd[ret_data['GodId']].append(ret_data)
 
     save_to_directory(ret_gmd, directory_path)
+
+
+def populate_opposing_and_allied_gods(match_detail: Dict[str, Any],
+                                      all_match_details: List[Dict[str, Any]]
+                                      ) -> Dict[str, Any]:
+    match_detail['Allied_GodIds'] = []
+    match_detail['Opposing_GodIds'] = []
+
+    for match in all_match_details:
+        if match_detail['MatchId'] == match['MatchId']:
+            if match_detail['TaskForce'] == match[
+                    'TaskForce'] and match_detail['GodId'] != match['GodId']:
+                match_detail['Allied_GodIds'].append(match['GodId'])
+            else:
+                match_detail['Opposing_GodIds'].append(match['GodId'])
+
+    return match_detail
