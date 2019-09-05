@@ -1,5 +1,8 @@
 import json
 import os
+from copy import deepcopy
+
+from tqdm import tqdm
 
 from typing import Dict, Union, List, Tuple, Any
 
@@ -10,11 +13,19 @@ def load_from_directory(directory_path: str) -> GodMatchData:
 
     all_data = {}
 
-    for file_path in os.listdir(directory_path):
+    for file_path in tqdm(os.listdir(directory_path)):
         with open(os.path.join(directory_path, file_path), "r") as data:
             all_data[file_path[:-5]] = json.loads(data.read())
 
     return all_data
+
+
+def save_to_directory(data: GodMatchData, directory_path: str):
+    for god_id in tqdm(data.keys()):
+        with open(os.path.join(directory_path, f'{god_id}.json'),
+                  "w") as file_pointer:
+            str_to_write = json.dumps(data[god_id])
+            file_pointer.write(str_to_write)
 
 
 def load_god_map(file_path: str) -> List[Tuple[int, str]]:
@@ -31,13 +42,12 @@ def load_item_map(file_path: str) -> List[Tuple[int, str]]:
     return [(entry["ItemId"], entry["DeviceName"]) for entry in raw_data]
 
 
-def filter_by_field(
-    data: GodMatchData, field_name: str, accepted_values: List[Union[str, int, float]]
-) -> GodMatchData:
+def filter_by_field(data: GodMatchData, field_name: str,
+                    accepted_values: List[Union[str, int, float]]
+                    ) -> GodMatchData:
     return {
         key: [
-            match_data
-            for match_data in val
+            match_data for match_data in val
             if match_data[field_name] in accepted_values
         ]
         for key, val in data.items()
@@ -45,10 +55,9 @@ def filter_by_field(
 
 
 def get_most_played(data: GodMatchData) -> List[Tuple[str, int]]:
-    ret_obj = [
-        (name, num_matches)
-        for name, num_matches in [(key, len(val)) for key, val in data.items()]
-    ]
+    ret_obj = [(name, num_matches)
+               for name, num_matches in [(key, len(val))
+                                         for key, val in data.items()]]
     ret_obj.sort(key=lambda x: x[1], reverse=True)
     return ret_obj
 
@@ -89,15 +98,11 @@ def get_most_picked(data: GodMatchData) -> List[Tuple[str, int]]:
     return retobj
 
 
-def get_id_name(
-    id_or_name: Union[int, str], mapping: List[Tuple[int, str]]
-) -> Tuple[int, str]:
+def get_id_name(id_or_name: Union[int, str],
+                mapping: List[Tuple[int, str]]) -> Tuple[int, str]:
     return next(
-        (
-            entry
-            for entry in mapping
-            if str(id_or_name) == str(entry[0]) or str(id_or_name) == str(entry[1])
-        ),
+        (entry for entry in mapping if str(id_or_name) == str(entry[0])
+         or str(id_or_name) == str(entry[1])),
         (-1, "NOT FOUND"),
     )
 
@@ -109,3 +114,26 @@ def get_most_recent_match_id(data: GodMatchData) -> str:
 
     all_matches.sort(key=lambda x: x["Match_Date_Timestamp"], reverse=True)
     return all_matches[0]["MatchId"]
+
+
+def populate_opposing_gods(directory_path: str):
+    data = load_from_directory(directory_path)
+
+    ret_gmd = {}
+
+    all_data = [match for matches in data.values() for match in matches]
+    all_ret_data = deepcopy(all_data)
+
+    for ret_data in tqdm(all_ret_data):
+        ret_data['Opposing_GodIds'] = []
+        for match_data in all_data:
+            if ret_data['MatchId'] == match_data['MatchId'] and ret_data[
+                    'TaskForce'] != match_data['TaskForce']:
+                ret_data['Opposing_GodIds'].append(match_data['GodId'])
+
+        if not ret_gmd.get(ret_data['GodId'], None):
+            ret_gmd[ret_data['GodId']] = []
+
+        ret_gmd[ret_data['GodId']].append(ret_data)
+
+    save_to_directory(ret_gmd, directory_path)
