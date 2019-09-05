@@ -116,7 +116,7 @@ def get_most_recent_match_id(data: GodMatchData) -> str:
     return all_matches[0]["MatchId"]
 
 
-def populate_opposing_gods(directory_path: str):
+def populate_opposing_and_allied_gods(directory_path: str):
     data = load_from_directory(directory_path)
 
     ret_gmd = {}
@@ -126,10 +126,13 @@ def populate_opposing_gods(directory_path: str):
 
     for ret_data in tqdm(all_ret_data):
         ret_data['Opposing_GodIds'] = []
+        ret_data['Allied_GodIds'] = []
         for match_data in all_data:
-            if ret_data['MatchId'] == match_data['MatchId'] and ret_data[
-                    'TaskForce'] != match_data['TaskForce']:
-                ret_data['Opposing_GodIds'].append(match_data['GodId'])
+            if ret_data['MatchId'] == match_data['MatchId']:
+                if ret_data['TaskForce'] == match_data['TaskForce']:
+                    ret_data['Allied_GodIds'].append(match_data['GodId'])
+                else:
+                    ret_data['Opposing_GodIds'].append(match_data['GodId'])
 
         if not ret_gmd.get(ret_data['GodId'], None):
             ret_gmd[ret_data['GodId']] = []
