@@ -22,8 +22,7 @@ def load_from_directory(directory_path: str) -> GodMatchData:
 
 def save_to_directory(data: GodMatchData, directory_path: str):
     for god_id in tqdm(data.keys()):
-        with open(os.path.join(directory_path, f'{god_id}.json'),
-                  "w") as file_pointer:
+        with open(os.path.join(directory_path, f"{god_id}.json"), "w") as file_pointer:
             str_to_write = json.dumps(data[god_id])
             file_pointer.write(str_to_write)
 
@@ -42,12 +41,13 @@ def load_item_map(file_path: str) -> List[Tuple[int, str]]:
     return [(entry["ItemId"], entry["DeviceName"]) for entry in raw_data]
 
 
-def filter_by_field(data: GodMatchData, field_name: str,
-                    accepted_values: List[Union[str, int, float]]
-                    ) -> GodMatchData:
+def filter_by_field(
+    data: GodMatchData, field_name: str, accepted_values: List[Union[str, int, float]]
+) -> GodMatchData:
     return {
         key: [
-            match_data for match_data in val
+            match_data
+            for match_data in val
             if match_data[field_name] in accepted_values
         ]
         for key, val in data.items()
@@ -55,9 +55,10 @@ def filter_by_field(data: GodMatchData, field_name: str,
 
 
 def get_most_played(data: GodMatchData) -> List[Tuple[str, int]]:
-    ret_obj = [(name, num_matches)
-               for name, num_matches in [(key, len(val))
-                                         for key, val in data.items()]]
+    ret_obj = [
+        (name, num_matches)
+        for name, num_matches in [(key, len(val)) for key, val in data.items()]
+    ]
     ret_obj.sort(key=lambda x: x[1], reverse=True)
     return ret_obj
 
@@ -98,11 +99,15 @@ def get_most_picked(data: GodMatchData) -> List[Tuple[str, int]]:
     return retobj
 
 
-def get_id_name(id_or_name: Union[int, str],
-                mapping: List[Tuple[int, str]]) -> Tuple[int, str]:
+def get_id_name(
+    id_or_name: Union[int, str], mapping: List[Tuple[int, str]]
+) -> Tuple[int, str]:
     return next(
-        (entry for entry in mapping if str(id_or_name) == str(entry[0])
-         or str(id_or_name) == str(entry[1])),
+        (
+            entry
+            for entry in mapping
+            if str(id_or_name) == str(entry[0]) or str(id_or_name) == str(entry[1])
+        ),
         (-1, "NOT FOUND"),
     )
 
@@ -116,52 +121,30 @@ def get_most_recent_match_id(data: GodMatchData) -> str:
     return all_matches[0]["MatchId"]
 
 
-def migrate_records_in_directory(
-        directory_path: str,
-        migration_function: Callable[[Dict[str, Any], List[Dict[str, Any]]],
-                                     Dict[str, Any]]):
+def migrate_records_in_directory(directory_path: str,):
     data = load_from_directory(directory_path)
     all_data = [match for matches in data.values() for match in matches]
 
+    # first build a dict of all gods in matches
+    match_gods: Dict[int, Dict[int, List[int]]] = {}
+    for match in tqdm(all_data):
+        if not match_gods.get(match["MatchId"], None):
+            match_gods[match["MatchId"]] = {1: [], 2: []}
+
+        match_gods[match["MatchId"]][match["TaskForce"]].append(match["GodId"])
+
+    for match in tqdm(all_data):
+        opposing_taskforce = 1 if match["TaskForce"] == 2 else 1
+
+        match["Allied_GodIds"] = match_gods[match["MatchId"]][match["TaskForce"]]
+        match["Opposing_GodIds"] = match_gods[match["MatchId"]][opposing_taskforce]
+
     ret_gmd = {}
-
-    # schedule all the jobs to run
-    executor = ProcessPoolExecutor()
-    handles = {
-        executor.submit(migration_function, mod_data, all_data)
-        for mod_data in all_data
-    }
-
-    # wait for the jobs to finish and record progress
-    pbar = tqdm(total=len(all_data))
-    pbar.set_description('Adding allied and opposing gods')
-    while any(map(lambda x: x.running(), handles)):
-        pbar.update(len(list(filter(lambda x: x.done(), handles))))
-    pbar.close()
-
     # build the final dictionary
-    for handle in tqdm(handles):
-        mod_data = handle.result()
-        if not ret_gmd.get(mod_data['GodId'], None):
-            ret_gmd[mod_data['GodId']] = []
+    for mod_data in all_data:
+        if not ret_gmd.get(mod_data["GodId"], None):
+            ret_gmd[mod_data["GodId"]] = []
 
-        ret_gmd[mod_data['GodId']].append(mod_data)
+        ret_gmd[mod_data["GodId"]].append(mod_data)
 
     save_to_directory(ret_gmd, directory_path)
-
-
-def populate_opposing_and_allied_gods(match_detail: Dict[str, Any],
-                                      all_match_details: List[Dict[str, Any]]
-                                      ) -> Dict[str, Any]:
-    match_detail['Allied_GodIds'] = []
-    match_detail['Opposing_GodIds'] = []
-
-    for match in all_match_details:
-        if match_detail['MatchId'] == match['MatchId']:
-            if match_detail['TaskForce'] == match[
-                    'TaskForce'] and match_detail['GodId'] != match['GodId']:
-                match_detail['Allied_GodIds'].append(match['GodId'])
-            else:
-                match_detail['Opposing_GodIds'].append(match['GodId'])
-
-    return match_detail
