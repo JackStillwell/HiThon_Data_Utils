@@ -1,6 +1,6 @@
 import json
 import os
-from copy import deepcopy
+from concurrent.futures import ProcessPoolExecutor
 
 from tqdm import tqdm
 
@@ -121,19 +121,30 @@ def migrate_records_in_directory(
         migration_function: Callable[[Dict[str, Any], List[Dict[str, Any]]],
                                      Dict[str, Any]]):
     data = load_from_directory(directory_path)
+    all_data = [match for matches in data.values() for match in matches]
 
     ret_gmd = {}
 
-    all_data = [match for matches in data.values() for match in matches]
-    all_ret_data = deepcopy(all_data)
+    # schedule all the jobs to run
+    executor = ProcessPoolExecutor()
+    handles = {
+        executor.submit(migration_function, mod_data, all_data)
+        for mod_data in all_data
+    }
 
-    for ret_data in tqdm(all_ret_data):
-        ret_data = migration_function(ret_data, all_data)
+    # wait for the jobs to finish and record progress
+    pbar = tqdm(total=len(all_data))
+    pbar.set_description('Adding allied and opposing gods')
+    while any(map(lambda x: x.running(), handles)):
+        pbar.update(len(list(filter(lambda x: x.done(), handles))))
+    pbar.close()
 
-        if not ret_gmd.get(ret_data['GodId'], None):
-            ret_gmd[ret_data['GodId']] = []
+    # build the final dictionary
+    for mod_data in all_data:
+        if not ret_gmd.get(mod_data['GodId'], None):
+            ret_gmd[mod_data['GodId']] = []
 
-        ret_gmd[ret_data['GodId']].append(ret_data)
+        ret_gmd[mod_data['GodId']].append(mod_data)
 
     save_to_directory(ret_gmd, directory_path)
 
