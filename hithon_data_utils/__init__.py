@@ -140,7 +140,7 @@ def migrate_records_in_directory(
     pbar.close()
 
     # build the final dictionary
-    for mod_data in all_data:
+    for mod_data in tqdm(all_data):
         if not ret_gmd.get(mod_data['GodId'], None):
             ret_gmd[mod_data['GodId']] = []
 
