@@ -1,11 +1,13 @@
 import json
 import os
+from collections import namedtuple
 
 from tqdm import tqdm
 
-from typing import Dict, Union, List, Tuple, Any, Callable
+from typing import Dict, Union, List, Tuple, Any
 
 GodMatchData = Dict[str, List[Dict[str, Any]]]
+Id_Name = namedtuple('Id_Name', ['id', 'name'])
 
 
 def load_from_directory(directory_path: str) -> GodMatchData:
@@ -27,18 +29,20 @@ def save_to_directory(data: GodMatchData, directory_path: str):
             file_pointer.write(str_to_write)
 
 
-def load_god_map(file_path: str) -> List[Tuple[int, str]]:
+def load_god_map(file_path: str) -> List[Id_Name]:
     with open(file_path, "r") as in_file:
         raw_data = json.loads(in_file.read())
 
-    return [(entry["id"], entry["Name"]) for entry in raw_data]
+    return [Id_Name(entry["id"], entry["Name"]) for entry in raw_data]
 
 
-def load_item_map(file_path: str) -> List[Tuple[int, str]]:
+def load_item_map(file_path: str) -> List[Id_Name]:
     with open(file_path, "r") as in_file:
         raw_data = json.loads(in_file.read())
 
-    return [(entry["ItemId"], entry["DeviceName"]) for entry in raw_data]
+    return [
+        Id_Name(entry["ItemId"], entry["DeviceName"]) for entry in raw_data
+    ]
 
 
 def filter_by_field(data: GodMatchData, field_name: str,
@@ -98,11 +102,11 @@ def get_most_picked(data: GodMatchData) -> List[Tuple[str, int]]:
 
 
 def get_id_name(id_or_name: Union[int, str],
-                mapping: List[Tuple[int, str]]) -> Tuple[int, str]:
+                mapping: List[Id_Name]) -> Id_Name:
     return next(
         (entry for entry in mapping if str(id_or_name) == str(entry[0])
          or str(id_or_name) == str(entry[1])),
-        (-1, "NOT FOUND"),
+        Id_Name(-1, "NOT FOUND"),
     )
 
 
@@ -144,3 +148,44 @@ def migrate_records_in_directory(directory_path: str, ):
         ret_gmd[mod_data["GodId"]].append(mod_data)
 
     save_to_directory(ret_gmd, directory_path)
+
+
+def convert_keys_to_names(data: List[Tuple[str, Any]],
+                          god_map: List[Id_Name]) -> List[Tuple[str, Any]]:
+    return [(get_id_name(k, god_map).name, v) for k, v in data]
+
+
+WinningData = namedtuple('WinningData', ['num_wins', 'perc_wins'])
+
+
+def get_most_winning(data: GodMatchData) -> List[Tuple[str, WinningData]]:
+    win_data = {
+        key: WinningData(
+            len([v for v in val if v['Win_Status'] == 'Winner']),
+            len([v for v in val if v['Win_Status'] == 'Winner']) / len(val))
+        for key, val in data.items()
+    }
+
+    ret_list = list(win_data.items())
+    ret_list.sort(key=lambda x: x[1].num_wins, reverse=True)
+    return ret_list
+
+
+def get_most_winning_against(god_id: str, data: GodMatchData
+                             ) -> List[Tuple[str, WinningData]]:
+    win_data = {
+        key: WinningData(
+            len([
+                v for v in val if v['Win_Status'] == 'Winner'
+                and god_id in v['Opposing_GodIds']
+            ]),
+            len([
+                v for v in val if v['Win_Status'] == 'Winner'
+                and god_id in v['Opposing_GodIds']
+            ]) / len(val))
+        for key, val in data.items()
+    }
+
+    ret_list = list(win_data.items())
+    ret_list.sort(key=lambda x: x[1].num_wins, reverse=True)
+    return ret_list
