@@ -1,6 +1,5 @@
 import json
 import os
-from concurrent.futures import ProcessPoolExecutor
 
 from tqdm import tqdm
 
@@ -22,7 +21,8 @@ def load_from_directory(directory_path: str) -> GodMatchData:
 
 def save_to_directory(data: GodMatchData, directory_path: str):
     for god_id in tqdm(data.keys()):
-        with open(os.path.join(directory_path, f"{god_id}.json"), "w") as file_pointer:
+        with open(os.path.join(directory_path, f"{god_id}.json"),
+                  "w") as file_pointer:
             str_to_write = json.dumps(data[god_id])
             file_pointer.write(str_to_write)
 
@@ -41,13 +41,12 @@ def load_item_map(file_path: str) -> List[Tuple[int, str]]:
     return [(entry["ItemId"], entry["DeviceName"]) for entry in raw_data]
 
 
-def filter_by_field(
-    data: GodMatchData, field_name: str, accepted_values: List[Union[str, int, float]]
-) -> GodMatchData:
+def filter_by_field(data: GodMatchData, field_name: str,
+                    accepted_values: List[Union[str, int, float]]
+                    ) -> GodMatchData:
     return {
         key: [
-            match_data
-            for match_data in val
+            match_data for match_data in val
             if match_data[field_name] in accepted_values
         ]
         for key, val in data.items()
@@ -55,10 +54,9 @@ def filter_by_field(
 
 
 def get_most_played(data: GodMatchData) -> List[Tuple[str, int]]:
-    ret_obj = [
-        (name, num_matches)
-        for name, num_matches in [(key, len(val)) for key, val in data.items()]
-    ]
+    ret_obj = [(name, num_matches)
+               for name, num_matches in [(key, len(val))
+                                         for key, val in data.items()]]
     ret_obj.sort(key=lambda x: x[1], reverse=True)
     return ret_obj
 
@@ -99,15 +97,11 @@ def get_most_picked(data: GodMatchData) -> List[Tuple[str, int]]:
     return retobj
 
 
-def get_id_name(
-    id_or_name: Union[int, str], mapping: List[Tuple[int, str]]
-) -> Tuple[int, str]:
+def get_id_name(id_or_name: Union[int, str],
+                mapping: List[Tuple[int, str]]) -> Tuple[int, str]:
     return next(
-        (
-            entry
-            for entry in mapping
-            if str(id_or_name) == str(entry[0]) or str(id_or_name) == str(entry[1])
-        ),
+        (entry for entry in mapping if str(id_or_name) == str(entry[0])
+         or str(id_or_name) == str(entry[1])),
         (-1, "NOT FOUND"),
     )
 
@@ -121,7 +115,7 @@ def get_most_recent_match_id(data: GodMatchData) -> str:
     return all_matches[0]["MatchId"]
 
 
-def migrate_records_in_directory(directory_path: str,):
+def migrate_records_in_directory(directory_path: str, ):
     data = load_from_directory(directory_path)
     all_data = [match for matches in data.values() for match in matches]
 
@@ -136,8 +130,10 @@ def migrate_records_in_directory(directory_path: str,):
     for match in tqdm(all_data):
         opposing_taskforce = 1 if match["TaskForce"] == 2 else 1
 
-        match["Allied_GodIds"] = match_gods[match["MatchId"]][match["TaskForce"]]
-        match["Opposing_GodIds"] = match_gods[match["MatchId"]][opposing_taskforce]
+        match["Allied_GodIds"] = match_gods[match["MatchId"]][
+            match["TaskForce"]]
+        match["Opposing_GodIds"] = match_gods[
+            match["MatchId"]][opposing_taskforce]
 
     ret_gmd = {}
     # build the final dictionary
