@@ -132,10 +132,10 @@ def migrate_records_in_directory(directory_path: str, ):
         match_gods[match["MatchId"]][match["TaskForce"]].append(match["GodId"])
 
     for match in tqdm(all_data):
-        opposing_taskforce = 1 if match["TaskForce"] == 2 else 1
+        opposing_taskforce = 1 if match["TaskForce"] == 2 else 2
 
-        match["Allied_GodIds"] = match_gods[match["MatchId"]][
-            match["TaskForce"]]
+        match["Allied_GodIds"] = [v for v in match_gods[match["MatchId"]][
+            match["TaskForce"]] if v != match["GodId"]]
         match["Opposing_GodIds"] = match_gods[
             match["MatchId"]][opposing_taskforce]
 
